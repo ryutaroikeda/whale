@@ -20,6 +20,16 @@ HELP = <<ENDHELP
   -s, --sort           Sort entries by the tag value
   -e, --edit           Open the editor to given entry
   --version            Show the version
+
+-f, --filter tag
+  Show entries with tag.
+
+-s, --sort tag
+  Sort the entries by tag.
+
+-e, --edit id
+  Edit the entry with id id using the text editor specified by the environment 
+  EDITOR.
 ENDHELP
 
 def debug(msg)

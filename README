@@ -12,8 +12,9 @@ without spaces. A tag-line can have multiple tags. Tags can be assigned values
 by writing tagname=value. Tag-lines are written under entries. Default tags 
 can be set for all entries in a file by putting the tag-lines before any entry.
 
+Set the environment EDITOR to choose the editor for the edit command.
+
 Upcoming features:
-The edit command, for opening editors to an entry.
 Output content of filtered and sorted entries
 Regex and logic for filtering on tags and tag values.
 Sort on multiple tags.
