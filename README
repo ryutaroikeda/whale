@@ -1,0 +1,22 @@
+whale.rb
+
+whale is a tool for organizing ideas. You write entries with your favourite 
+text-editor and add tags to it. You then run whale on the file to filter and 
+sort by the tags on each entry. whale does not change the given files.
+
+An entry is text separated by tag-lines. The first line of an entry is the 
+title.
+
+A semi-colon at the beginning of the line indicates a tag-line. Tags are words
+without spaces. A tag-line can have multiple tags. Tags can be assigned values 
+by writing tagname=value. Tag-lines are written under entries. Default tags 
+can be set for all entries in a file by putting the tag-lines before any entry.
+
+Upcoming features:
+The edit command, for opening editors to an entry.
+Output content of filtered and sorted entries
+Regex and logic for filtering on tags and tag values.
+Sort on multiple tags.
+Check version.
+
+Suggestions are welcome.
