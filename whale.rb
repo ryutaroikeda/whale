@@ -22,6 +22,24 @@ HELP = <<ENDHELP
   --version            Show the version
 ENDHELP
 
+def debug(msg)
+  puts msg if DEBUG
+end
+
+$editor_cmds = {
+  vim: "vim +%<line>d %<file>s",
+  emacs: "emacs +%<line>d %<file>s",
+  nano: "nano +%<line>d,1 %<file>s",
+}
+$editor_cmds.default = "ed %<file>s"
+
+def open_editor(editor, path, lineno)
+  debug("opening at #{lineno}")
+  args = {line: lineno, file: path}
+  cmd = $editor_cmds[editor] % args
+  exec(cmd)
+end
+  
 class Entry
   attr_accessor :tags
 
@@ -104,9 +122,6 @@ def list_tags(tags)
   puts s.slice(0, s.length - 2)
 end
 
-def debug(msg)
-  puts msg if DEBUG
-end
 
 EMPTY_LINE = /\A\s*\Z/
 LABEL_LINE = /\A;(.*)\Z/
@@ -191,7 +206,15 @@ if __FILE__ == $0
   puts "Parsed #{args[:files].length} files and #{entries.length} entries"
   filter_entries(entries, args[:filter].to_sym) if args[:filter]
   sort_entries_by(entries, args[:sort]) if args[:sort]
-  puts "under construction" if args[:edit]
+  if args[:edit]
+    i = args[:edit].to_i - 1
+    e = entries[i]
+    if e.nil?
+      puts "Invalid ID"
+      exit
+    end
+    open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line])
+  end
   all_tags = get_all_tags entries
   debug(list_tags(all_tags))
   tags_to_list = [:title, :date, :tags]
