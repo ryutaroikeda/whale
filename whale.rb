@@ -7,7 +7,7 @@ MAJOR_VERSION = 0
 MINOR_VERSION = 0
 REVISION      = 0
 
-DEBUG = true
+DEBUG = false
 
 USAGE = <<ENDUSAGE
 Usage:
@@ -19,6 +19,7 @@ HELP = <<ENDHELP
   -f, --filter         List entries with the tag
   -s, --sort           Sort entries by the tag value
   -e, --edit           Open the editor to given entry
+  -w, --write          Write the entries to file
   --version            Show the version
 
 -f, --filter tag
@@ -30,26 +31,17 @@ HELP = <<ENDHELP
 -e, --edit id
   Edit the entry with id id using the text editor specified by the environment 
   EDITOR.
+
+-w, --write
+  Write the entries, including title, body, and tags, to stdout.
 ENDHELP
 
 def debug(msg)
   puts msg if DEBUG
 end
 
-$editor_cmds = {
-  vim: "vim +%<line>d %<file>s",
-  emacs: "emacs +%<line>d %<file>s",
-  nano: "nano +%<line>d,1 %<file>s",
-}
-$editor_cmds.default = "ed %<file>s"
+$DEFAULT_TAGS = [:title, :body, :line, :file, :tags]
 
-def open_editor(editor, path, lineno)
-  debug("opening at #{lineno}")
-  args = {line: lineno, file: path}
-  cmd = $editor_cmds[editor] % args
-  exec(cmd)
-end
-  
 class Entry
   attr_accessor :tags
 
@@ -71,6 +63,34 @@ def sort_entries_by(entries, tag)
   return entries.sort { |a, b| a.tags[tag] <=> b.tags[tag] }
 end
 
+$EDITOR_CMDS = {
+  vim: "vim +%<line>d %<file>s",
+  emacs: "emacs +%<line>d %<file>s",
+  nano: "nano +%<line>d,1 %<file>s",
+}
+$EDITOR_CMDS.default = "ed %<file>s"
+
+def open_editor(editor, path, lineno)
+  debug("opening at #{lineno}")
+  args = {line: lineno, file: path}
+  cmd = $EDITOR_CMDS[editor] % args
+  exec(cmd)
+end
+
+def write_entries(entries)
+  entries.each do |e|
+    printf("#{e.tags[:title]}\n")
+    printf("#{e.tags[:body]}")
+    # extension: implement wrapping
+    e.tags.each do |t, v|
+      next if $DEFAULT_TAGS.find_index(t) 
+      printf(";#{t}")
+      printf("=#{v}") if v != true
+      printf("\n")
+    end
+  end
+end
+
 # Print the entries.
 def list_entries(entries, tags, tags_format)
   id = 1
@@ -80,8 +100,8 @@ def list_entries(entries, tags, tags_format)
   raise "tags and format length mismatch" if tags.length != tags_format.length
   tags.each_index do |i|
     w = tags_format[i]
-    header_format += "%#{w}.#{w}s "
-    row_format += "%<#{tags[i]}>#{w}.#{w}s "
+    header_format += "%-#{w}.#{w}s "
+    row_format += "%<#{tags[i]}>-#{w}.#{w}s "
     header << tags[i]
   end
   puts header_format % header
@@ -191,6 +211,7 @@ if __FILE__ == $0
     when '-f','--filter'        then next_arg = :filter
     when '-s','--sort'          then next_arg = :sort
     when '-e','--edit'          then next_arg = :edit
+    when '-w', '--write'        then args[:write] = true
     when '--version'            then args[:version] = true
     else
       if next_arg == :files
@@ -225,9 +246,12 @@ if __FILE__ == $0
     end
     open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line])
   end
-  all_tags = get_all_tags entries
-  debug(list_tags(all_tags))
-  tags_to_list = [:title, :date, :tags]
-  tags_format = [45, 10, 25]
-  list_entries(entries, tags_to_list, tags_format)
+  write_entries(entries) if args[:write]
+  if !args[:write]
+    all_tags = get_all_tags entries
+    debug(list_tags(all_tags))
+    tags_to_list = [:title, :date, :tags]
+    tags_format = [45, 10, 25]
+    list_entries(entries, tags_to_list, tags_format)
+  end
 end
