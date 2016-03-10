@@ -7,7 +7,7 @@ MAJOR_VERSION = 0
 MINOR_VERSION = 0
 REVISION      = 0
 
-DEBUG = false
+DEBUG = true
 
 USAGE = <<ENDUSAGE
 Usage:
@@ -22,8 +22,13 @@ HELP = <<ENDHELP
   -w, --write          Write the entries to file
   --version            Show the version
 
--f, --filter tag
-  Show entries with tag.
+-f, --filter filter
+  Show entries with tags satisfying the filter. The filter is a string 
+  consisting of Ruby regexes and operators in reverse polish notation. 
+  A regex evaluates to true if at least one tag name in an entry matches it.
+  One can further match on the tag value by writing = followed by a regex.
+  Options for regexes are specified by writing /(?option:regex)/.
+  The symbols for AND, OR, and NOT are &, |, and *, respectively.
 
 -s, --sort tag
   Sort the entries by tag.
@@ -38,6 +43,14 @@ ENDHELP
 
 def debug(msg)
   puts msg if DEBUG
+end
+
+def error(msg)
+  puts "Error: #{msg}"
+end
+
+def warning(msg)
+  puts "Warning: #{msg}"
 end
 
 $DEFAULT_TAGS = [:title, :body, :line, :file, :tags]
@@ -55,8 +68,104 @@ class Entry
 
 end
 
-def filter_entries(entries, tag)
-  entries.delete_if { |a| a.tags[tag].nil? }
+class Filter
+
+  def initialize()
+    @stack = []
+  end
+
+  # For regex options (e.g. ignorecase) use the (?opt:source) notation,
+  # e.g. /(?i-mx:hEllo .*)/
+  def parse_filter(f)
+    debug("parsing #{f}")
+    regex = false
+    quote = nil
+    escape = false
+    # literal = false
+    token = 0
+    stack = []
+    (0...f.length).each do |i|
+      if f[i] == '\\' or escape
+        escape ^= true
+      elsif f[i] == '"' or f[i] == "'"
+        unless regex
+          if quote == f[i]
+            stack << f[token, i - token]
+            quote = nil
+          else
+            token = i + 1
+            quote = f[i]
+          end
+        end
+      elsif f[i] == '/'
+        unless quote
+          if regex
+            stack << Regexp.new(f[token, i - token])
+            regex = false
+          else
+            token = i + 1
+            regex = true
+          end
+        end
+      elsif !regex and !quote
+        stack << :FILTER_AND if f[i] == '&'
+        stack << :FILTER_OR if f[i] == '|'
+        stack << :FILTER_NOT if f[i] == '*'
+        stack << :FILTER_EQ if f[i] == '='
+      end
+    end
+    debug(stack)
+    @stack = stack
+  end
+
+  def match_token(entry, token)
+    tags = []
+    entry.tags.each do |t, v|
+      tags << t if token.match t.to_s
+    end
+    return tags
+  end
+
+  # apply the stack to the entry tags
+  def filter(entry)
+    s = []
+    last_tags = []
+    eq = false
+    @stack.each do |t|
+      case t
+      when :FILTER_AND then s << (s.pop & s.pop)
+      when :FILTER_OR then s << (s.pop | s.pop)
+      when :FILTER_NOT then s << !s.pop
+      when :FILTER_EQ then eq = true
+      else
+        if eq
+          debug("last tags: #{last_tags}")
+          match = false
+          s.pop
+          last_tags.each do |u|
+            if t.match entry.tags[u]
+              match = true 
+              debug("#{t} matches #{entry.tags[u]}")
+              break
+            end
+          end
+          s << match
+          eq = false
+        else
+          last_tags = match_token entry, t
+          s << !last_tags.empty?
+        end
+      end
+    end
+    debug(s)
+    warning("malformed filter") if s.length != 1
+    return s.first
+  end
+
+end
+
+def filter_entries(entries, filter)
+  entries.delete_if { |a| !filter.filter(a) }
 end
 
 def sort_entries_by(entries, tag)
@@ -235,7 +344,11 @@ if __FILE__ == $0
   entries = []
   args[:files].each { |f| entries += parse_file(f) }
   puts "Parsed #{args[:files].length} files and #{entries.length} entries"
-  filter_entries(entries, args[:filter].to_sym) if args[:filter]
+  if args[:filter]
+    filter = Filter.new
+    filter.parse_filter args[:filter]
+    filter_entries(entries, filter)
+  end 
   sort_entries_by(entries, args[:sort]) if args[:sort]
   if args[:edit]
     i = args[:edit].to_i - 1
