@@ -1,0 +1,59 @@
+#!/usr/bin/env ruby
+require 'whale'
+
+args = { :files => [] }
+unflagged_args = [:files]
+next_arg = unflagged_args.first
+ARGV.each do |arg|
+  case arg
+  when '-h','--help'          then args[:help] = true
+  when '-f','--filter'        then next_arg = :filter
+  when '-s','--sort'          then next_arg = :sort
+  when '-e','--edit'          then next_arg = :edit
+  when '-w', '--write'        then args[:write] = true
+  when '--version'            then args[:version] = true
+  else
+    if next_arg == :files
+      args[:files] << arg
+    else
+      args[next_arg] = arg
+      unflagged_args.delete next_arg
+      next_arg = unflagged_args.first
+    end
+  end
+end
+if args[:version]
+  puts "whale.rb version #{MAJOR_VERSION}.#{MINOR_VERSION}.#{REVISION}"
+  exit
+end
+if args[:help] or args[:files].empty?
+  puts USAGE
+  puts HELP if args[:help]
+  exit
+end
+entries = []
+args[:files].each { |f| entries += parse_file(f) }
+puts "Parsed #{args[:files].length} files and #{entries.length} entries"
+if args[:filter]
+  filter = Filter.new
+  filter.parse_filter args[:filter]
+  filter_entries(entries, filter)
+end 
+sort_entries_by(entries, args[:sort]) if args[:sort]
+if args[:edit]
+  i = args[:edit].to_i - 1
+  e = entries[i]
+  if e.nil?
+    puts "Invalid ID"
+    exit
+  end
+  open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line])
+end
+write_entries(entries) if args[:write]
+if !args[:write]
+  all_tags = get_all_tags entries
+  debug(list_tags(all_tags))
+  tags_to_list = [:title, :date, :tags]
+  tags_format = [45, 10, 25]
+  list_entries(entries, tags_to_list, tags_format)
+end

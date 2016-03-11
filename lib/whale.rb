@@ -1,4 +1,3 @@
-#!/usr/bin/env ruby
 # File: whale.rb
 
 require 'set'
@@ -69,6 +68,7 @@ class Entry
 end
 
 class Filter
+  attr_reader :stack
 
   def initialize()
     @stack = []
