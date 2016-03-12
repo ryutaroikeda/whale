@@ -4,7 +4,7 @@ require 'set'
 require 'logger'
 
 MAJOR_VERSION = 0
-MINOR_VERSION = 1
+MINOR_VERSION = 2
 REVISION      = 0
 
 $DEFAULT_TAGS = [:title, :body, :line, :file, :tags]
@@ -198,9 +198,9 @@ end
 def list_tags(tags)
   s = ""
   tags.each do |tag|
-    s << "#{tag}, "
+    s << "#{tag} "
   end
-  puts s.slice(0, s.length - 2)
+  puts s
 end
 
 # List files in the path with the given extension

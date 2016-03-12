@@ -15,9 +15,5 @@ can be set for all entries in a file by putting the tag-lines before any entry.
 Set the environment EDITOR to choose the editor for the edit command.
 
 Upcoming features:
-Output content of filtered and sorted entries
-Regex and logic for filtering on tags and tag values.
-Sort on multiple tags.
-Check version.
 
 Suggestions are welcome.
