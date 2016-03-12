@@ -1,56 +1,11 @@
 # File: whale.rb
 
 require 'set'
+require 'logger'
 
 MAJOR_VERSION = 0
-MINOR_VERSION = 0
+MINOR_VERSION = 1
 REVISION      = 0
-
-DEBUG = true
-
-USAGE = <<ENDUSAGE
-Usage:
-  whale [-h] [-f tag] [-s tag] [-e id] files..
-ENDUSAGE
-
-HELP = <<ENDHELP
-  -h, --help           View this message
-  -f, --filter         List entries with the tag
-  -s, --sort           Sort entries by the tag value
-  -e, --edit           Open the editor to given entry
-  -w, --write          Write the entries to file
-  --version            Show the version
-
--f, --filter filter
-  Show entries with tags satisfying the filter. The filter is a string 
-  consisting of Ruby regexes and operators in reverse polish notation. 
-  A regex evaluates to true if at least one tag name in an entry matches it.
-  One can further match on the tag value by writing = followed by a regex.
-  Options for regexes are specified by writing /(?option:regex)/.
-  The symbols for AND, OR, and NOT are &, |, and *, respectively.
-
--s, --sort tag
-  Sort the entries by tag.
-
--e, --edit id
-  Edit the entry with id id using the text editor specified by the environment 
-  EDITOR.
-
--w, --write
-  Write the entries, including title, body, and tags, to stdout.
-ENDHELP
-
-def debug(msg)
-  puts msg if DEBUG
-end
-
-def error(msg)
-  puts "Error: #{msg}"
-end
-
-def warning(msg)
-  puts "Warning: #{msg}"
-end
 
 $DEFAULT_TAGS = [:title, :body, :line, :file, :tags]
 
@@ -76,10 +31,9 @@ class Filter
 
   # For regex options (e.g. ignorecase) use the (?opt:source) notation,
   # e.g. /(?i-mx:hEllo .*)/
-  def parse_filter(f)
-    debug("parsing #{f}")
+  def parse_filter(f, logger)
+    logger.debug("parsing #{f}")
     regex = false
-    quote = nil
     escape = false
     # literal = false
     token = 0
@@ -87,34 +41,22 @@ class Filter
     (0...f.length).each do |i|
       if f[i] == '\\' or escape
         escape ^= true
-      elsif f[i] == '"' or f[i] == "'"
-        unless regex
-          if quote == f[i]
-            stack << f[token, i - token]
-            quote = nil
-          else
-            token = i + 1
-            quote = f[i]
-          end
-        end
       elsif f[i] == '/'
-        unless quote
-          if regex
-            stack << Regexp.new(f[token, i - token])
-            regex = false
-          else
-            token = i + 1
-            regex = true
-          end
+        if regex
+          stack << Regexp.new(f[token, i - token])
+          regex = false
+        else
+          token = i + 1
+          regex = true
         end
-      elsif !regex and !quote
+      elsif !regex
         stack << :FILTER_AND if f[i] == '&'
         stack << :FILTER_OR if f[i] == '|'
         stack << :FILTER_NOT if f[i] == '*'
         stack << :FILTER_EQ if f[i] == '='
       end
     end
-    debug(stack)
+    logger.debug(stack)
     @stack = stack
   end
 
@@ -127,7 +69,7 @@ class Filter
   end
 
   # apply the stack to the entry tags
-  def filter(entry)
+  def filter(entry, logger)
     s = []
     last_tags = []
     eq = false
@@ -139,13 +81,13 @@ class Filter
       when :FILTER_EQ then eq = true
       else
         if eq
-          debug("last tags: #{last_tags}")
+          logger.debug("last tags: #{last_tags}")
           match = false
           s.pop
           last_tags.each do |u|
             if t.match entry.tags[u]
               match = true 
-              debug("#{t} matches #{entry.tags[u]}")
+              logger.debug("#{t} matches #{entry.tags[u]}")
               break
             end
           end
@@ -157,18 +99,18 @@ class Filter
         end
       end
     end
-    debug(s)
-    warning("malformed filter") if s.length != 1
+    logger.debug(s)
+    logger.warn("Malformed filter") if s.length != 1
     return s.first
   end
 
 end
 
-def filter_entries(entries, filter)
-  entries.delete_if { |a| !filter.filter(a) }
+def filter_entries(entries, filter, logger)
+  entries.delete_if { |a| !filter.filter(a, logger) }
 end
 
-def sort_entries_by(entries, tag)
+def sort_entries_by(entries, tag, logger)
   return entries.sort { |a, b| a.tags[tag] <=> b.tags[tag] }
 end
 
@@ -179,8 +121,8 @@ $EDITOR_CMDS = {
 }
 $EDITOR_CMDS.default = "ed %<file>s"
 
-def open_editor(editor, path, lineno)
-  debug("opening at #{lineno}")
+def open_editor(editor, path, lineno, logger)
+  logger.debug("opening at #{lineno}")
   args = {line: lineno, file: path}
   cmd = $EDITOR_CMDS[editor] % args
   exec(cmd)
@@ -261,36 +203,46 @@ def list_tags(tags)
   puts s.slice(0, s.length - 2)
 end
 
+# List files in the path with the given extension
+def list_files_in_path(path, recursive, logger)
+  file_glob = '*.{wl,whale}'
+  if recursive
+    glob_path = File.join(path, File.join('**', file_glob))
+  else
+    glob_path = File.join(path, file_glob)
+  end
+  return Dir.glob(glob_path)
+end
 
 EMPTY_LINE = /\A\s*\Z/
 LABEL_LINE = /\A;(.*)\Z/
 
 # Extract entries from file.
-# param @file String the path of the file to parse
-# return Array the array of Entry
-def parse_file(file)
+# param @file a file name to read
+# return Array an array of Entry
+def parse_file(file, logger)
   entries = []
   file_entry = Entry.new
-  File.open(file, "r") do |f|
-    entry = nil
-    is_reading_tag = true
-    lineno = 0
+  entry = nil
+  is_reading_tag = true
+  lineno = 0
+  File.open(file, 'r') do |f|
     f.each_line do |line|
       lineno += 1
       # skip if the line is whitespace
       next if EMPTY_LINE.match line
       if (m = LABEL_LINE.match line)
-        debug("#{f.path}, #{lineno}, reading tag")
+        logger.debug("#{f.path}, #{lineno}, reading tag")
         is_reading_tag = true
         matched_line = m[1]
         if entry.nil?
-          debug("adding file entry tags #{matched_line}")
+          logger.debug("adding file entry tags #{matched_line}")
           parse_tags file_entry, matched_line
         else
           parse_tags entry, matched_line
         end
       elsif is_reading_tag
-        debug("#{f.path}, #{lineno}, new entry")
+        logger.debug("#{f.path}, #{lineno}, new entry")
         is_reading_tag = false
         entries << entry if !entry.nil?
         entry = Entry.new
@@ -302,69 +254,10 @@ def parse_file(file)
       end
     end
     entries << entry if !entry.nil?
-    puts "Last entry is missing tag" if !is_reading_tag
+    logger.warn("#{file} missing last entry tags") if !is_reading_tag
   end
   # add the file level tags to each entry
-  debug(file_entry.tags)
+  logger.debug(file_entry.tags)
   entries.each { |e| e.tags = file_entry.tags.merge(e.tags) }
   return entries
-end
-
-if __FILE__ == $0
-  args = { :files => [] }
-  unflagged_args = [:files]
-  next_arg = unflagged_args.first
-  ARGV.each do |arg|
-    case arg
-    when '-h','--help'          then args[:help] = true
-    when '-f','--filter'        then next_arg = :filter
-    when '-s','--sort'          then next_arg = :sort
-    when '-e','--edit'          then next_arg = :edit
-    when '-w', '--write'        then args[:write] = true
-    when '--version'            then args[:version] = true
-    else
-      if next_arg == :files
-        args[:files] << arg
-      else
-        args[next_arg] = arg
-        unflagged_args.delete next_arg
-        next_arg = unflagged_args.first
-      end
-    end
-  end
-  if args[:version]
-    puts "whale.rb version #{MAJOR_VERSION}.#{MINOR_VERSION}.#{REVISION}"
-    exit
-  end
-  if args[:help] or args[:files].empty?
-    puts USAGE
-    puts HELP if args[:help]
-    exit
-  end
-  entries = []
-  args[:files].each { |f| entries += parse_file(f) }
-  puts "Parsed #{args[:files].length} files and #{entries.length} entries"
-  if args[:filter]
-    filter = Filter.new
-    filter.parse_filter args[:filter]
-    filter_entries(entries, filter)
-  end 
-  sort_entries_by(entries, args[:sort]) if args[:sort]
-  if args[:edit]
-    i = args[:edit].to_i - 1
-    e = entries[i]
-    if e.nil?
-      puts "Invalid ID"
-      exit
-    end
-    open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line])
-  end
-  write_entries(entries) if args[:write]
-  if !args[:write]
-    all_tags = get_all_tags entries
-    debug(list_tags(all_tags))
-    tags_to_list = [:title, :date, :tags]
-    tags_format = [45, 10, 25]
-    list_entries(entries, tags_to_list, tags_format)
-  end
 end

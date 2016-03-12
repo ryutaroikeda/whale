@@ -1,17 +1,91 @@
 #!/usr/bin/env ruby
 require 'whale'
+require 'logger'
 
-args = { :files => [] }
+
+USAGE = <<ENDUSAGE
+Usage:
+  whale [files] [-h] [-p paths] [-r] [-f filter] [-e id] [-s tag]
+        [-w] [-n] [-t] [-v] [-d]
+ENDUSAGE
+
+HELP = <<ENDHELP
+  files                Space-separated list of files
+  -h, --help           View this message
+  -p, --paths          Colon-separated list of paths to search
+  -r, --recursive      Search for files recursively
+  -f, --filter         Filter entries by tags
+  -e, --edit           Open the editor to given entry
+  -s, --sort           Sort entries by tag value
+  -w, --write          Write the entries to stdout
+  -n, --name           List the tag names
+  -t, --tags           Show the tag values
+  -v, --version        Show the version number
+  -d, --debug          Set the logging level to debug
+
+-p, --paths
+  Specify the paths to search. Each path is separated by a colon. Any files 
+  with the .wl or .whale extension are read.
+
+-r, --recursive
+  Search for files recursively.
+
+-f, --filter filter
+  Show entries with tags satisfying the filter. The filter is a string 
+  consisting of Ruby regexes and operators in reverse polish notation. 
+  A regex evaluates to true if at least one tag name in an entry matches it.
+  One can further match on the tag value by writing = followed by a regex.
+  Options for regexes are specified by writing /(?option:regex)/.
+  The symbols for AND, OR, and NOT are &, |, and *, respectively.
+
+-e, --edit id
+  Edit the entry with id id using the text editor specified by the environment 
+  EDITOR.
+
+-n, --name
+  List all tags read.
+
+-t, --tags tags
+  Show the values of the given tags.
+
+-s, --sort tag
+  Sort the entries by the given tag value.
+
+-w, --write
+  Write the entries, including title, body, and tags, to stdout.
+
+-v, --version
+  Show the version number.
+
+-d, --debug
+  Set the logging level to debug.
+
+Environment
+  EDITOR
+    The editor for the edit command.
+
+  WHALEPATH
+    A colon separated list of default paths to search when paths is not
+    provided.
+ENDHELP
+
+args = { :files => [], :recursive => false }
 unflagged_args = [:files]
 next_arg = unflagged_args.first
+
 ARGV.each do |arg|
   case arg
   when '-h','--help'          then args[:help] = true
+  when '-p','--paths'         then next_arg = :paths
   when '-f','--filter'        then next_arg = :filter
-  when '-s','--sort'          then next_arg = :sort
   when '-e','--edit'          then next_arg = :edit
-  when '-w', '--write'        then args[:write] = true
-  when '--version'            then args[:version] = true
+  when '-n','--name'          then args[:name] = true
+  when '-t','--tags'          then next_arg = :tags
+  when '-s','--sort'          then next_arg = :sort
+  when '-r','--recursive'     then args[:recursive] = true
+  when '-w','--write'         then args[:write] = true
+  when '-v','--version'       then args[:version] = true
+  when '-d','--debug'         then args[:debug] = true
   else
     if next_arg == :files
       args[:files] << arg
@@ -22,24 +96,56 @@ ARGV.each do |arg|
     end
   end
 end
+
+logger = Logger.new(STDOUT)
+logger.level = Logger::WARN
+logger.level = Logger::DEBUG if args[:debug]
+logger.level = Logger::UNKNOWN if args[:write]
+
 if args[:version]
   puts "whale.rb version #{MAJOR_VERSION}.#{MINOR_VERSION}.#{REVISION}"
   exit
 end
+
+paths = []
+paths += ENV['WHALEPATH'].split(':') if ENV['WHALEPATH']
+paths += args[:paths].split(':') if args[:paths]
+
+logger.debug(paths)
+
+paths.each { |p| args[:files] += \
+  list_files_in_path(p, args[:recursive], logger) }
+
+logger.debug(args[:files])
+
 if args[:help] or args[:files].empty?
   puts USAGE
   puts HELP if args[:help]
   exit
 end
+
 entries = []
-args[:files].each { |f| entries += parse_file(f) }
-puts "Parsed #{args[:files].length} files and #{entries.length} entries"
+args[:files].each do |file| 
+  begin
+    entries += parse_file(file, logger)
+  rescue Errno::ENOENT
+    logger.warn("File not found: #{file}")
+  rescue Errno::EISDIR
+    logger.warn("#{file} is a directory. Use -p to specify paths")
+  end
+end
+
+logger.info("Parsed #{args[:files].length} files " +
+            "and #{entries.length} entries")
+
 if args[:filter]
   filter = Filter.new
-  filter.parse_filter args[:filter]
-  filter_entries(entries, filter)
+  filter.parse_filter(args[:filter], logger)
+  filter_entries(entries, filter, logger)
 end 
-sort_entries_by(entries, args[:sort]) if args[:sort]
+
+sort_entries_by(entries, args[:sort], logger) if args[:sort]
+
 if args[:edit]
   i = args[:edit].to_i - 1
   e = entries[i]
@@ -47,13 +153,27 @@ if args[:edit]
     puts "Invalid ID"
     exit
   end
-  open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line])
+  open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line], logger)
 end
+
+if args[:name] and !args[:write]
+  list_tags get_all_tags(entries)
+end
+
 write_entries(entries) if args[:write]
-if !args[:write]
+
+tags_to_list = [:title, :date, :tags]
+tags_format = [45, 10, 24]
+
+if args[:tags]
+  tags = args[:tags].split(' ')
+  tags.each do |t| 
+    tags_to_list << t.to_sym
+    tags_format << 24
+  end
+end
+
+if !args[:write] and !args[:name]
   all_tags = get_all_tags entries
-  debug(list_tags(all_tags))
-  tags_to_list = [:title, :date, :tags]
-  tags_format = [45, 10, 25]
   list_entries(entries, tags_to_list, tags_format)
 end
