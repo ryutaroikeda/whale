@@ -130,14 +130,14 @@ end
 
 def write_entries(entries)
   entries.each do |e|
-    printf("#{e.tags[:title]}\n")
-    printf("#{e.tags[:body]}")
+    puts(e.tags[:title])
+    print("#{e.tags[:body]}")
     # extension: implement wrapping
     e.tags.each do |t, v|
       next if $DEFAULT_TAGS.find_index(t) 
-      printf(";#{t}")
-      printf("=#{v}") if v != true
-      printf("\n")
+      print(";#{t}")
+      print("=#{v}") if v != true
+      print("\n")
     end
   end
 end
