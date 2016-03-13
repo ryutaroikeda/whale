@@ -4,7 +4,7 @@ require 'set'
 require 'logger'
 
 MAJOR_VERSION = 0
-MINOR_VERSION = 2
+MINOR_VERSION = 3
 REVISION      = 0
 
 $DEFAULT_TAGS = [:title, :body, :line, :file, :tags]

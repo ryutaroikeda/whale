@@ -1,19 +1,77 @@
-whale.rb
+Usage:
+  whale [filter] [-h] [-p paths] [-r] [-f file] [-e id] [-s tag]
+        [-w] [-n] [-t] [-v] [-d]
+  filter               Filter to apply on the entries
+  -h, --help           View this message
+  -p, --paths          Colon-separated list of paths to search
+  -r, --recursive      Search for files recursively
+  -f, --file           The file to read
+  -e, --edit           Open the editor at the given entry
+  -s, --sort           Sort entries by tag value
+  -w, --write          Write the entries to stdout
+  -n, --name           List the tag names
+  -t, --tags           Show the tag values
+  -v, --version        Show the version number
+  -d, --debug          Set the logging level to debug
 
-whale is a tool for organizing ideas. You write entries with your favourite 
-text-editor and add tags to it. You then run whale on the file to filter and 
-sort by the tags on each entry. whale does not change the given files.
+  whale is a tool for keeping your ideas organized. Write ideas into some 
+  files and tag them with labels. whale can then filter and sort the entries
+  based on the tags. Each entry ends with one or more taglines, which consist 
+  of a semicolon followed by space-separated tags. Tags are assigned a
+  value by writing tag=value. Taglines at the beginning of the file are 
+  applied to every entry in the file.
 
-An entry is text separated by tag-lines. The first line of an entry is the 
-title.
+filter
+  Show entries with tags satisfying the filter. The filter is a string 
+  consisting of Ruby regexes and operators in reverse polish notation. 
+  A regex evaluates to true if at least one tag name in an entry matches it.
+  One can further match on the tag value by writing = followed by a regex.
+  Options for regexes are specified by writing in the form /(?option:regex)/.
+  The symbols for AND, OR, and NOT are &, |, and *, respectively.
 
-A semi-colon at the beginning of the line indicates a tag-line. Tags are words
-without spaces. A tag-line can have multiple tags. Tags can be assigned values 
-by writing tagname=value. Tag-lines are written under entries. Default tags 
-can be set for all entries in a file by putting the tag-lines before any entry.
+  Example:
+    whale "/action/ /done/ * &" gives entries with tags matching 'action' but 
+    not 'done'.
 
-Set the environment EDITOR to choose the editor for the edit command.
+-p, --paths
+  Specify the paths to search. Each path is separated by a colon. Any files 
+  with the .wl or .whale extension are read.
 
-Upcoming features:
+-r, --recursive
+  Search for files recursively.
 
-Suggestions are welcome.
+-f, --file file
+  The file to read.
+
+-e, --edit id
+  Edit the entry with id id using the text editor specified by the environment 
+  EDITOR.
+
+-n, --name
+  List all tags read.
+
+-t, --tags tags
+  Show the values of the given tags.
+
+-s, --sort tag
+  Sort the entries by the given tag value.
+
+-w, --write
+  Write the entries, including title, body, and tags, to stdout.
+
+-v, --version
+  Show the version number.
+
+-d, --debug
+  Set the logging level to debug.
+
+Environment
+  EDITOR
+    The editor for the edit command.
+
+  WHALEPATH
+    A colon separated list of default paths to search when paths is not
+    provided.
+
+Installation
+  gem install whale

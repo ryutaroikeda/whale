@@ -2,7 +2,6 @@
 require 'whale'
 require 'logger'
 
-
 USAGE = <<ENDUSAGE
 Usage:
   whale [filter] [-h] [-p paths] [-r] [-f file] [-e id] [-s tag]
@@ -81,6 +80,9 @@ Environment
   WHALEPATH
     A colon separated list of default paths to search when paths is not
     provided.
+
+Installation
+  gem install whale
 ENDHELP
 
 args = {}
