@@ -215,7 +215,7 @@ def list_files_in_path(path, recursive, logger)
 end
 
 EMPTY_LINE = /\A\s*\Z/
-LABEL_LINE = /\A;(.*)\Z/
+TAGLINE = /\A;(.*)\Z/
 
 # Extract entries from file.
 # param @file a file name to read
@@ -229,9 +229,7 @@ def parse_file(file, logger)
   File.open(file, 'r') do |f|
     f.each_line do |line|
       lineno += 1
-      # skip if the line is whitespace
-      next if EMPTY_LINE.match line
-      if (m = LABEL_LINE.match line)
+      if (m = TAGLINE.match line)
         logger.debug("#{f.path}, #{lineno}, reading tag")
         is_reading_tag = true
         matched_line = m[1]
@@ -242,6 +240,7 @@ def parse_file(file, logger)
           parse_tags entry, matched_line
         end
       elsif is_reading_tag
+        next if EMPTY_LINE.match line
         logger.debug("#{f.path}, #{lineno}, new entry")
         is_reading_tag = false
         entries << entry if !entry.nil?
