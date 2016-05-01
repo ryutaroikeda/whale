@@ -4,7 +4,7 @@ require 'set'
 require 'logger'
 
 MAJOR_VERSION = 0
-MINOR_VERSION = 3
+MINOR_VERSION = 4
 REVISION      = 0
 
 $DEFAULT_TAGS = [:title, :body, :line, :file, :tags]
@@ -260,3 +260,4 @@ def parse_file(file, logger)
   entries.each { |e| e.tags = file_entry.tags.merge(e.tags) }
   return entries
 end
+

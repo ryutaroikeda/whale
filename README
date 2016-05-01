@@ -1,5 +1,5 @@
 Usage:
-  whale [filter] [-h] [-p paths] [-r] [-f file] [-e id] [-s tag]
+  whale [filter] [-h] [-p paths] [-r] [-f file] [-e id] [-s tag] [-c file]
         [-w] [-n] [-t] [-v] [-d]
   filter               Filter to apply on the entries
   -h, --help           View this message
@@ -8,6 +8,7 @@ Usage:
   -f, --file           The file to read
   -e, --edit           Open the editor at the given entry
   -s, --sort           Sort entries by tag value
+  -c, --create         Create a new file
   -w, --write          Write the entries to stdout
   -n, --name           List the tag names
   -t, --tags           Show the tag values
@@ -55,6 +56,11 @@ filter
 
 -s, --sort tag
   Sort the entries by the given tag value.
+
+-c, --create file
+	Create a new file with the given name. If the file exists, it is opened.
+	If no -p is given, the file is created at the WHALEPATH. If WHALEPATH is
+	not set, it is created at the current directory.
 
 -w, --write
   Write the entries, including title, body, and tags, to stdout.

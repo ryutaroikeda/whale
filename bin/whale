@@ -4,7 +4,7 @@ require 'logger'
 
 USAGE = <<ENDUSAGE
 Usage:
-  whale [filter] [-h] [-p paths] [-r] [-f file] [-e id] [-s tag]
+  whale [filter] [-h] [-p paths] [-r] [-f file] [-e id] [-s tag] [-c file]
         [-w] [-n] [-t] [-v] [-d]
 ENDUSAGE
 
@@ -16,6 +16,7 @@ HELP = <<ENDHELP
   -f, --file           The file to read
   -e, --edit           Open the editor at the given entry
   -s, --sort           Sort entries by tag value
+  -c, --create         Create a new file
   -w, --write          Write the entries to stdout
   -n, --name           List the tag names
   -t, --tags           Show the tag values
@@ -64,6 +65,11 @@ filter
 -s, --sort tag
   Sort the entries by the given tag value.
 
+-c, --create file
+	Create a new file with the given name. If the file exists, it is opened.
+	If no -p is given, the file is created at the WHALEPATH. If WHALEPATH is
+	not set, it is created at the current directory.
+
 -w, --write
   Write the entries, including title, body, and tags, to stdout.
 
@@ -98,6 +104,7 @@ ARGV.each do |arg|
   when '-n','--name'          then args[:name] = true
   when '-t','--tags'          then next_arg = :tags
   when '-s','--sort'          then next_arg = :sort
+	when '-c','--create'				then next_arg = :create
   when '-r','--recursive'     then args[:recursive] = true
   when '-w','--write'         then args[:write] = true
   when '-v','--version'       then args[:version] = true
@@ -119,6 +126,17 @@ if args[:version]
   exit
 end
 
+if args[:help]
+  puts USAGE
+  puts HELP
+  exit
+end
+
+if !next_arg.nil? and next_arg != :filter
+	puts USAGE
+	exit
+end
+
 files = []
 files << args[:file] if args[:file]
 paths = []
@@ -131,10 +149,16 @@ paths.each { |p| files += list_files_in_path(p, args[:recursive], logger) }
 
 logger.debug(files)
 
-if args[:help] or files.empty?
-  puts USAGE
-  puts HELP if args[:help]
-  exit
+if args[:create]
+	if ENV['WHALEPATH']
+		filename = File.join(ENV['WHALEPATH'].split(':')[0], args[:create])
+	elsif args[:path]
+		filename = File.join(args[:path].split(':')[0], args[:create])
+	else
+		filename = args[:create]
+	end
+	open_editor(ENV['EDITOR'].to_sym, filename, 0, logger)
+	exit
 end
 
 entries = []
@@ -167,6 +191,7 @@ if args[:edit]
     exit
   end
   open_editor(ENV['EDITOR'].to_sym, e.tags[:file], e.tags[:line], logger)
+	exit
 end
 
 if args[:name] and !args[:write]
